@@ -28,8 +28,8 @@ int send_all(int sock, const void *buf, size_t len);
 int main(int argc, char* argv[]) {
     int sock; 
     struct sockaddr_in serv_addr;
-    int str_len = 0;
-    int idx = 0, read_len = 0;
+    // int str_len = 0;
+    // int idx = 0, read_len = 0;
 
     if (argc != 3) {
         printf("Usage : %s <IP> <port>\n", argv[0]);
@@ -61,41 +61,41 @@ int main(int argc, char* argv[]) {
         printf("\nType a message(time or q): ");
 
         /* 사용자의 입력을 받음 */
-        if (fgets(pkt.time_msg, sizeof(pkt.time_msg), stdin) != NULL) {
-            size_t input_len = strlen(pkt.time_msg);
-            /* 널 처리 */ 
-            pkt.time_msg[input_len] = '\0';
-        }
+        if (fgets(pkt.time_msg, sizeof(pkt.time_msg), stdin) == NULL)
+            break;
+
+        pkt.time_msg[strcspn(pkt.time_msg, "\n")] = '\0';
+
         /* 입력 검사 및 cmd 업데이트 */
-        if (!strcmp(pkt.time_msg, "time") || 
-            !strcmp(pkt.time_msg, "time\n")) {
-            pkt.cmd = TIME_REQ;
-        } else if (!strcmp(pkt.time_msg, "q") || 
-            !strcmp(pkt.time_msg, "q\n")) {
-            pkt.cmd = TIME_END;
-        } else {
+        if (strcmp(pkt.time_msg, "time") == 0) pkt.cmd = TIME_REQ;
+        else if (strcmp(pkt.time_msg, "q") == 0) pkt.cmd = TIME_END;
+        else {
+            /* 잘못 입력하면 클라이언트쪽에서 재입력, 서버는 에러처리 */
             printf("Wrong message.");
             continue;
         }
-        /* 정상적으로 패킷이 보내졌으면 */
-        if (send_all(sock, &pkt, sizeof(pkt)) == 0) {
-            /* 보낸 패킷이 시간 요청이면 */
-            if (pkt.cmd == TIME_REQ) {
-                printf("[Client] Tx TIME_REQ\n");
-                printf("[Client] Rx TIME_RES: ");
 
-                PACKET recv_pkt = {0};
+        /* 바이트오더 변환 */
+        pkt.cmd = htonl(pkt.cmd);
+ 
+        if (send_all(sock, &pkt, sizeof(pkt)) != 0) {
+            error_handling("failed send_all()");
+        }
 
-                if (recv_all(sock, &recv_pkt, sizeof(recv_pkt)) == 1) {
-                    /* cmd 뛰어넘고 메시지만 출력 */
-                    printf("%s", recv_pkt.time_msg+4);
-                }
-            } else if (pkt.cmd == TIME_END) {
-                printf("[Client] Tx TIME_END\n");
-                printf("Exit Client\n");
-                break;
+        /* 보낸 패킷이 시간 요청이면 */
+        if (ntohl(pkt.cmd) == TIME_REQ) {
+            printf("[Client] Tx TIME_REQ\n");
+
+            PACKET recv_pkt = {0};
+            if (recv_all(sock, &recv_pkt, sizeof(recv_pkt)) == 1
+                && ntohl(recv_pkt.cmd) == TIME_RES) {
+                    printf("[Client] Rx TIME_RES: %s", recv_pkt.time_msg);
             }
-        } else error_handling("recive() failed");
+        } else if (ntohl(pkt.cmd) == TIME_END) {
+            printf("[Client] Tx TIME_END\n");
+            printf("Exit Client\n");
+            break;
+        }
     }
 
     /* #################### */

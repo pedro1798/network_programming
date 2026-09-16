@@ -82,9 +82,13 @@ int main(int argc, char* argv[]) {
         PACKET res_pkt = {0};
 
         /* 수신 후 확인 */
-        if (recv_all(clnt_sock, &rcv_pkt.cmd, sizeof(int)) == 1 &&
-            recv_all(clnt_sock, &rcv_pkt.time_msg, sizeof(PACKET) - sizeof(int)) == 1)
-            // rcv_pkt.cmd = ntohl(rcv_pkt.cmd);
+        int rec = recv_all(clnt_sock, &rcv_pkt.cmd, sizeof(PACKET));
+        if (rec == 1)
+            /* 네트워크에서 호스트로 바이트오더 변환 */
+            rcv_pkt.cmd = ntohl(rcv_pkt.cmd);
+        else if (rec == 0) {
+            error_handling("Clinet Disconnected\n");
+        } 
         else { /* 오류나면 종료 */
             error_handling("receive failed");
             break;
@@ -93,12 +97,16 @@ int main(int argc, char* argv[]) {
         /* 시간 요청이 들어오면 쿼리 검사 */
         /* 그냥 서버측에서도 한번 더 검사... */
         /* wrong message인 경유 cmd = 0 */
-        printf("debug:: %d\n", rcv_pkt.cmd);
+        // printf("debug:: %d\n", rcv_pkt.cmd);
         if (rcv_pkt.cmd == TIME_REQ &&
                 (!strcmp(rcv_pkt.time_msg, "time") ||
                  !strcmp(rcv_pkt.time_msg, "time\n"))) {
             printf("[Server] Rx TIME_REQ\n");
+
             res_pkt.cmd = TIME_RES;
+            /* 리스폰스 cmd 호스트에서 네트워크로 바이트오더 변환 */
+            res_pkt.cmd = htonl(res_pkt.cmd);
+
             get_time(&res_pkt);
 
             /* 구조체 전체를 클라이언트에 write */
@@ -116,7 +124,7 @@ int main(int argc, char* argv[]) {
         }
         /* 잘못된 입력 */
         else {
-            fprintf(clnt_sock, "Wrong message.\n");
+            error_handling("wrong message\n");
         }
     }
 
@@ -175,7 +183,7 @@ int send_all(int sock, const void *buf, size_t len) {
         ssize_t n = send(sock, p, len, 0);
 
         if (n < 0) {
-            if (errno = EINTR) continue;
+            if (errno == EINTR) continue;
             return 1;
         }
 
