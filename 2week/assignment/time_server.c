@@ -49,8 +49,7 @@ int main(int argc, char* argv[]) {
 
     /* 
      * 모든 로컬 IPv4 네트워크 인터페이스에서 들어오는 연결 받음 
-     * htonl(host to network long): host byte order → network byte order의 32비트 변환
-     * INADDR_ANY 의 값은 0이다.
+     * htonl(host to network long): host byte order → network byte order의 32비트 변환 * INADDR_ANY 의 값은 0이다.
      */
     serv_addr.sin_addr.s_addr = htonl(INADDR_ANY); 
     serv_addr.sin_port = htons(atoi(argv[1]));
@@ -69,12 +68,14 @@ int main(int argc, char* argv[]) {
             serv_sock, /* 서버의 연결 대기 소켓 디스크립터 */
             (struct sockaddr *) &clnt_addr, /* 연결 요청한 클라이언트 주소정보 */
             &clnt_addr_size);
-    printf("Connected client sock: %d\n", clnt_sock);
 
     if (clnt_sock == -1) 
         error_handling("accecpt() error");
 
+    printf("Connected client sock: %d\n", clnt_sock);
+
     /* 뜯어고쳐야됨 */
+    /* #################### */
 
     while (1) {
         PACKET rcv_pkt = {0};
@@ -82,8 +83,8 @@ int main(int argc, char* argv[]) {
 
         /* 수신 후 확인 */
         if (recv_all(clnt_sock, &rcv_pkt.cmd, sizeof(int)) == 1 &&
-        recv_all(clnt_sock, &rcv_pkt.time_msg, sizeof(PACKET) - sizeof(int)) == 1)
-            rcv_pkt.cmd = (int)rcv_pkt.cmd;
+            recv_all(clnt_sock, &rcv_pkt.time_msg, sizeof(PACKET) - sizeof(int)) == 1)
+            // rcv_pkt.cmd = ntohl(rcv_pkt.cmd);
         else { /* 오류나면 종료 */
             error_handling("receive failed");
             break;
@@ -92,6 +93,7 @@ int main(int argc, char* argv[]) {
         /* 시간 요청이 들어오면 쿼리 검사 */
         /* 그냥 서버측에서도 한번 더 검사... */
         /* wrong message인 경유 cmd = 0 */
+        printf("debug:: %d\n", rcv_pkt.cmd);
         if (rcv_pkt.cmd == TIME_REQ &&
                 (!strcmp(rcv_pkt.time_msg, "time") ||
                  !strcmp(rcv_pkt.time_msg, "time\n"))) {
@@ -100,8 +102,11 @@ int main(int argc, char* argv[]) {
             get_time(&res_pkt);
 
             /* 구조체 전체를 클라이언트에 write */
-            send_all(clnt_sock, &res_pkt, sizeof(PACKET));
-            printf("[Server] TIME_RES time: %s\n", res_pkt.time_msg);
+            if (!send_all(clnt_sock, &res_pkt, sizeof(PACKET))) { 
+                printf("[Server] TIME_RES time: %s\n", res_pkt.time_msg);
+            } else {
+                error_handling("TIME_RES Tx failed\n");
+            }
         }
         /* 종료 요청이 들어오면 while break */
         else if (rcv_pkt.cmd == TIME_END) {

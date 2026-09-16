@@ -58,10 +58,12 @@ int main(int argc, char* argv[]) {
     while (1) {
         PACKET pkt = {0};
 
-        /* 사용자의 입력을 받음 */
         printf("\nType a message(time or q): ");
+
+        /* 사용자의 입력을 받음 */
         if (fgets(pkt.time_msg, sizeof(pkt.time_msg), stdin) != NULL) {
             size_t input_len = strlen(pkt.time_msg);
+            /* 널 처리 */ 
             pkt.time_msg[input_len] = '\0';
         }
         /* 입력 검사 및 cmd 업데이트 */
@@ -80,10 +82,12 @@ int main(int argc, char* argv[]) {
             /* 보낸 패킷이 시간 요청이면 */
             if (pkt.cmd == TIME_REQ) {
                 printf("[Client] Tx TIME_REQ\n");
-
                 printf("[Client] Rx TIME_RES: ");
+
                 PACKET recv_pkt = {0};
+
                 if (recv_all(sock, &recv_pkt, sizeof(recv_pkt)) == 1) {
+                    /* cmd 뛰어넘고 메시지만 출력 */
                     printf("%s", recv_pkt.time_msg+4);
                 }
             } else if (pkt.cmd == TIME_END) {
