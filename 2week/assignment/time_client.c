@@ -86,12 +86,21 @@ int main(int argc, char* argv[]) {
         if (ntohl(pkt.cmd) == TIME_REQ) {
             printf("[Client] Tx TIME_REQ\n");
 
+            /* RES 패킷을 돌려받는다 */
             PACKET recv_pkt = {0};
-            if (recv_all(sock, &recv_pkt, sizeof(recv_pkt)) == 1
+            int rec = recv_all(sock, &recv_pkt, sizeof(recv_pkt));
+
+            if (rec == 1
                 && ntohl(recv_pkt.cmd) == TIME_RES) {
                     printf("[Client] Rx TIME_RES: %s", recv_pkt.time_msg);
+            } else if (rec == 0) {
+                error_handling("Server closed\n");
+            } else {
+                error_handling("recv_all(...) error!\n");
             }
-        } else if (ntohl(pkt.cmd) == TIME_END) {
+        }
+        /* 보낸 패킷이 종료 요청이면 */
+        else if (ntohl(pkt.cmd) == TIME_END) {
             printf("[Client] Tx TIME_END\n");
             printf("Exit Client\n");
             break;
@@ -139,7 +148,7 @@ int send_all(int sock, const void *buf, size_t len) {
         ssize_t n = send(sock, p, len, 0);
 
         if (n < 0) {
-            if (errno = EINTR) continue;
+            if (errno == EINTR) continue;
             return 1;
         }
 

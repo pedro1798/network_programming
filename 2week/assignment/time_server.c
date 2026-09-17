@@ -87,7 +87,8 @@ int main(int argc, char* argv[]) {
             /* 네트워크에서 호스트로 바이트오더 변환 */
             rcv_pkt.cmd = ntohl(rcv_pkt.cmd);
         else if (rec == 0) {
-            error_handling("Clinet Disconnected\n");
+            error_handling("Client disconnected...\n");
+            break;
         } 
         else { /* 오류나면 종료 */
             error_handling("receive failed");
@@ -95,12 +96,9 @@ int main(int argc, char* argv[]) {
         }
 
         /* 시간 요청이 들어오면 쿼리 검사 */
-        /* 그냥 서버측에서도 한번 더 검사... */
         /* wrong message인 경유 cmd = 0 */
         // printf("debug:: %d\n", rcv_pkt.cmd);
-        if (rcv_pkt.cmd == TIME_REQ &&
-                (!strcmp(rcv_pkt.time_msg, "time") ||
-                 !strcmp(rcv_pkt.time_msg, "time\n"))) {
+        if (rcv_pkt.cmd == TIME_REQ) {
             printf("[Server] Rx TIME_REQ\n");
 
             res_pkt.cmd = TIME_RES;
@@ -111,7 +109,7 @@ int main(int argc, char* argv[]) {
 
             /* 구조체 전체를 클라이언트에 write */
             if (!send_all(clnt_sock, &res_pkt, sizeof(PACKET))) { 
-                printf("[Server] TIME_RES time: %s\n", res_pkt.time_msg);
+                printf("[Server] Tx TIME_RES %s\n", res_pkt.time_msg);
             } else {
                 error_handling("TIME_RES Tx failed\n");
             }
@@ -136,7 +134,7 @@ int main(int argc, char* argv[]) {
 
 void error_handling(char *time_msg) {
     fputs(time_msg, stderr);
-    fputs('\n', stderr);
+    fputc('\n', stderr);
     exit(1);
 }
 
