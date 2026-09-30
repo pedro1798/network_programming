@@ -92,6 +92,11 @@ int main(int argc, char *argv[]) {
                     rcv_pkt.cmd, clnt_pkt.buf, rcv_pkt.buf);
             break;
         }
+
+        /* wrong cmd 소거 */
+        if (rcv_pkt.cmd == FILE_REQ || rcv_pkt.cmd == FILE_END_ACK) {
+            error_handling("wrong cmd recieved");
+        }
         total_rx_cnt += 1;
         total_rx_bytes += rcv_pkt.buf_len;
 
@@ -121,7 +126,7 @@ int main(int argc, char *argv[]) {
     printf("------------------------------------\n");
     /* ----------- VVboilerplate codeVV ----------- */
 
-    close(sock);
+    close(sock); /* 소켓 닫고 종료 */
     return 0;
 }
 

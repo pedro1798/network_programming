@@ -87,7 +87,7 @@ int main(int argc, char *argv[]) {
     }
     rcv_pkt.buf[BUF_SIZE] = '\0';
 
-    /* FILE_REQ cmd 처리 */
+    /* 처음 수신하는 패킷은 FILE_REQ cmd 만 허용 */
     if (rcv_pkt.cmd != FILE_REQ) error_handling("wrong cmd received");
 
     printf("[Rx] cmd: %d, file_name: %s\n", rcv_pkt.cmd, rcv_pkt.buf);
@@ -99,6 +99,7 @@ int main(int argc, char *argv[]) {
         if (read_all(clnt_sock, &rcv_pkt, sizeof(PACKET)) == -1) {
             error_handling("read() error");
         }
+        /* 파일 전송 후 수신받은 cmd가 FILE_END_ACK 아닐 시 예외처리 */
         if (rcv_pkt.cmd != FILE_END_ACK) error_handling("wrong cmd received");
     }
 
@@ -109,6 +110,7 @@ int main(int argc, char *argv[]) {
 
     /* -------- VVboilerplate code^^ --------*/
 
+    /* 소켓 닫기 */
     close(clnt_sock);
     close(serv_sock);
     return 0;
