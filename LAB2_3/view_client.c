@@ -24,6 +24,7 @@ typedef struct {
 } PACKET;
 
 ssize_t read_all(int sock, void *buf, size_t len);
+ssize_t write_all(int sock, const void *buf, size_t len);
 
 int main(int argc, char *argv[]) {
     int sock;
@@ -58,7 +59,7 @@ int main(int argc, char *argv[]) {
     PACKET clnt_pkt;
     memset(&clnt_pkt, 0, sizeof(PACKET));
 
-    if (scanf("%s", clnt_pkt.buf) == -1) {
+    if (scanf("%100s", clnt_pkt.buf) == -1) {
         error_handling("scanf() error");
     }
     getchar(); /* 파일 이름만 입력받고 '\n' 소모 */
@@ -70,27 +71,32 @@ int main(int argc, char *argv[]) {
     clnt_pkt.cmd = FILE_REQ;
 
     /* 서버에 FILE REQUEST */
-    write(sock, &clnt_pkt, sizeof(clnt_pkt));
+    if (write_all(sock, &clnt_pkt, sizeof(clnt_pkt)) == -1) {
+        error_handling("write_all() error");
+    }
     printf("[Tx] cmd: %d, file name: %s\n", clnt_pkt.cmd, clnt_pkt.buf);
 
     PACKET rcv_pkt;
     memset(&rcv_pkt, 0, sizeof(PACKET));
     int total_rx_cnt = 0;
     int total_rx_bytes = 0; /* buf_len을 더하라 */
+
     /* 응답 패킷 받고 출력 */
     while (1) {
         ssize_t read_size = read_all(sock, &rcv_pkt, sizeof(PACKET));
+        if (read_size <= 0) error_handling("read_all() error");
+
         /* FILE_NOT_FOUND면 while loop escape */
         if (rcv_pkt.cmd == FILE_NOT_FOUND) {
             printf("[Rx] cmd: %d, %s: %s\n",
                     rcv_pkt.cmd, clnt_pkt.buf, rcv_pkt.buf);
             break;
         }
-        if (read_size <= 0) error_handling("read_all() error");
         total_rx_cnt += 1;
         total_rx_bytes += rcv_pkt.buf_len;
 
         fwrite(rcv_pkt.buf, 1, rcv_pkt.buf_len, stdout);
+        fflush(stdout);
 
         /* 마지막 패킷 구조체를 받으면 */
         if(rcv_pkt.cmd == FILE_END){
@@ -100,7 +106,7 @@ int main(int argc, char *argv[]) {
             /* FILE_END_ACK 송신 */
             memset(&clnt_pkt, 0, sizeof(PACKET));
             clnt_pkt.cmd = FILE_END_ACK;
-            if (write(sock, &clnt_pkt, sizeof(PACKET)) == -1) {
+            if (write_all(sock, &clnt_pkt, sizeof(PACKET)) == -1) {
                 error_handling("FILE_END_ACK write() error");
             }
             printf("[Tx] cmd: %d, FILE_END_ACK\n", clnt_pkt.cmd);
@@ -131,6 +137,16 @@ ssize_t read_all(int sock, void *buf, size_t len) {
         ssize_t n = read(sock, (char *)buf + total, len - total);
         if (n == -1) error_handling("read() error");
         if (n == 0) return 0;
+        total += n;
+    }
+    return total;
+}
+
+ssize_t write_all(int sock, const void *buf, size_t len) {
+    size_t total = 0;
+    while (total < len) {
+        ssize_t n = write(sock, (const char *)buf + total, len - total);
+        if (n == -1) return -1;
         total += n;
     }
     return total;

@@ -17,13 +17,15 @@
 // #include <errno.h>
 
 typedef struct {
-    int cmd;
-    int buf_len;
+    int cmd; // 4byte
+    int buf_len; // 4byte
     char buf[BUF_SIZE+1]; // null 자리
 } PACKET;
 
 void error_handling(char *message);
 int file_transmit(PACKET *rcv_pkt, int clnt_sock, int *pkt_cnt, int *total_tx_bytes);
+ssize_t read_all(int sock, void *buf, size_t len);
+ssize_t write_all(int sock, const void *buf, size_t len);
 
 int main(int argc, char *argv[]) {
     int serv_sock; /* 연결용 소켓 */
@@ -79,7 +81,7 @@ int main(int argc, char *argv[]) {
     memset(&rcv_pkt, 0, sizeof(PACKET));
 
     /* 클라이언트측에서 FILE_REQ 수신 no While !! 절차적 처리 */
-    int rcv_pkt_size = read(clnt_sock, &rcv_pkt, sizeof(PACKET));
+    int rcv_pkt_size = read_all(clnt_sock, &rcv_pkt, sizeof(PACKET));
     if (rcv_pkt_size == -1) {
         error_handling("read() error");
     }
@@ -94,7 +96,7 @@ int main(int argc, char *argv[]) {
     if (!file_transmit(&rcv_pkt, clnt_sock, &pkt_cnt, &total_tx_bytes)) {
         /* 파일 정상적으로 전송 후 FILE_END_ACK 수신 처리 */
         memset(&rcv_pkt, 0, sizeof(PACKET)); /* 패킷 받을 구조체 초기화 */
-        if (read(clnt_sock, &rcv_pkt, sizeof(PACKET)) == -1) {
+        if (read_all(clnt_sock, &rcv_pkt, sizeof(PACKET)) == -1) {
             error_handling("read() error");
         }
         if (rcv_pkt.cmd != FILE_END_ACK) error_handling("wrong cmd received");
@@ -128,9 +130,8 @@ int file_transmit(PACKET *rcv_pkt, int clnt_sock, int *pkt_cnt, int *total_tx_by
         snprintf(send_pkt.buf, sizeof(send_pkt.buf), "File Not Found");
         send_pkt.buf_len = strlen(send_pkt.buf);
 
-        if (write(clnt_sock, &send_pkt, sizeof(PACKET)) == -1) {
-            fclose(fp);
-            error_handling("write() error");
+        if (write_all(clnt_sock, &send_pkt, sizeof(PACKET)) == -1) {
+            error_handling("write_all() error");
         }
         printf("[Tx] cmd: %d, %s: File Not Found\n",
                 send_pkt.cmd, rcv_pkt->buf);
@@ -166,7 +167,7 @@ int file_transmit(PACKET *rcv_pkt, int clnt_sock, int *pkt_cnt, int *total_tx_by
 
             send_pkt.buf_len = (int)read_bytes;
 
-            if (write(clnt_sock, &send_pkt, sizeof(PACKET)) == -1) {
+            if (write_all(clnt_sock, &send_pkt, sizeof(PACKET)) == -1) {
                 fclose(fp);
                 error_handling("packet write() error");
             }
@@ -184,4 +185,25 @@ int file_transmit(PACKET *rcv_pkt, int clnt_sock, int *pkt_cnt, int *total_tx_by
 
     fclose(fp); /* 파일 닫고 종료 */
     return 0;
+}
+
+ssize_t read_all(int sock, void *buf, size_t len) {
+    size_t total = 0;
+    while (total < len) {
+        ssize_t n = read(sock, (char *)buf + total, len - total);
+        if (n == 0) return 0;
+        if (n == -1) return -1;
+        total += n;
+    }
+    return total;
+}
+
+ssize_t write_all(int sock, const void *buf, size_t len) {
+    size_t total = 0;
+    while (total < len) {
+        ssize_t n = write(sock, (const char *)buf + total, len - total);
+        if (n == -1) return -1;
+        total += n;
+    }
+    return total;
 }
