@@ -71,33 +71,44 @@ int main(int argc, char *argv[]) {
 
     /* 서버에 FILE REQUEST */
     write(sock, &clnt_pkt, sizeof(clnt_pkt));
+    printf("[Tx] cmd: %d, file name: %s\n", clnt_pkt.cmd, clnt_pkt.buf);
 
     PACKET rcv_pkt;
     memset(&rcv_pkt, 0, sizeof(PACKET));
-    int total_rx_cnt = 0; 
+    int total_rx_cnt = 0;
     int total_rx_bytes = 0; /* buf_len을 더하라 */
     /* 응답 패킷 받고 출력 */
     while (1) {
-        ssize_t read_size = read_all(sock, &rcv_pkt, BUF_SIZE);
+        ssize_t read_size = read_all(sock, &rcv_pkt, sizeof(PACKET));
+        /* FILE_NOT_FOUND면 while loop escape */
+        if (rcv_pkt.cmd == FILE_NOT_FOUND) {
+            printf("[Rx] cmd: %d, %s: %s\n",
+                    rcv_pkt.cmd, clnt_pkt.buf, rcv_pkt.buf);
+            break;
+        }
         if (read_size <= 0) error_handling("read_all() error");
         total_rx_cnt += 1;
         total_rx_bytes += rcv_pkt.buf_len;
 
-        // printf("%s", rcv_pkt.buf);
-        fwrite(rcv_pkt.buf, 1, read_size, stdout);
+        fwrite(rcv_pkt.buf, 1, rcv_pkt.buf_len, stdout);
 
-        memset(&rcv_pkt, 0, sizeof(PACKET));
+        /* 마지막 패킷 구조체를 받으면 */
         if(rcv_pkt.cmd == FILE_END){
             printf("\n---------------------------\n");
             printf("[Rx] cmd: %d, FILE_END\n", rcv_pkt.cmd);
+
+            /* FILE_END_ACK 송신 */
+            memset(&clnt_pkt, 0, sizeof(PACKET));
+            clnt_pkt.cmd = FILE_END_ACK;
+            if (write(sock, &clnt_pkt, sizeof(PACKET)) == -1) {
+                error_handling("FILE_END_ACK write() error");
+            }
+            printf("[Tx] cmd: %d, FILE_END_ACK\n", clnt_pkt.cmd);
             break;
         }
+        memset(&rcv_pkt, 0, sizeof(PACKET));
     }
 
-    memset(&clnt_pkt, 0, sizeof(PACKET));
-    clnt_pkt.cmd = FILE_END_ACK;
-    if (write(sock, &clnt_pkt, sizeof(PACKET)) == -1) error_handling("FILE_END_ACK write() error");
-    printf("[Tx] cmd: %d, FILE_END_ACK\n", clnt_pkt.cmd);
     printf("------------------------------------\n");
     printf("Total Rx count: %d, bytes: %d\n", total_rx_cnt, total_rx_bytes);
     printf("TCP Client Socket Close!\n");

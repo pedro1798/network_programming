@@ -91,17 +91,14 @@ int main(int argc, char *argv[]) {
     printf("[Rx] cmd: %d, file_name: %s\n", rcv_pkt.cmd, rcv_pkt.buf);
 
     /* 클라이언트에게 파일 전송하기 */
-    if (file_transmit(&rcv_pkt, clnt_sock, &pkt_cnt, &total_tx_bytes) != 0) { /* 정상적으로 전송했으면 0 리턴 */
-        error_handling("file transmit error");
+    if (!file_transmit(&rcv_pkt, clnt_sock, &pkt_cnt, &total_tx_bytes)) {
+        /* 파일 정상적으로 전송 후 FILE_END_ACK 수신 처리 */
+        memset(&rcv_pkt, 0, sizeof(PACKET)); /* 패킷 받을 구조체 초기화 */
+        if (read(clnt_sock, &rcv_pkt, sizeof(PACKET)) == -1) {
+            error_handling("read() error");
+        }
+        if (rcv_pkt.cmd != FILE_END_ACK) error_handling("wrong cmd received");
     }
-
-    /* 파일 정상적으로 전송 후 FILE_END_ACK 수신 처리 */
-    memset(&rcv_pkt, 0, sizeof(PACKET)); /* 패킷 받을 구조체 초기화 */
-    if (read(clnt_sock, &rcv_pkt, sizeof(PACKET)) == -1) {
-        error_handling("read() error");
-    }
-
-    if (rcv_pkt.cmd != FILE_END_ACK) error_handling("wrong cmd received");
 
     printf("------------------------------\n");
     printf("Total Tx count: %d, bytes: %d\n", pkt_cnt, total_tx_bytes);
@@ -128,13 +125,15 @@ int file_transmit(PACKET *rcv_pkt, int clnt_sock, int *pkt_cnt, int *total_tx_by
     FILE *fp = fopen(rcv_pkt->buf, "r");
     if (fp == NULL) { /* file open error */
         send_pkt.cmd = FILE_NOT_FOUND;
-        snprintf(send_pkt.buf, sizeof(send_pkt.buf), "File Not Found\n");
+        snprintf(send_pkt.buf, sizeof(send_pkt.buf), "File Not Found");
         send_pkt.buf_len = strlen(send_pkt.buf);
 
         if (write(clnt_sock, &send_pkt, sizeof(PACKET)) == -1) {
             fclose(fp);
             error_handling("write() error");
         }
+        printf("[Tx] cmd: %d, %s: File Not Found\n",
+                send_pkt.cmd, rcv_pkt->buf);
         return -1; /* 파일이 존재하지 않으면 -1 리턴하고 종료 */
     } else { /* 파일이 존재한다면 */
         /*
