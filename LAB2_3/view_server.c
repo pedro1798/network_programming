@@ -16,8 +16,6 @@
 #include <unistd.h>
 // #include <errno.h>
 
-void error_handling(char *message);
-
 typedef struct {
     int cmd;
     /*
@@ -27,6 +25,9 @@ typedef struct {
     int buf_len;
     char buf[BUF_SIZE+1]; // null 자리
 } PACKET;
+
+void error_handling(char *message);
+int file_transmit(PACKET *rcv_pkt, int clnt_sock, int *pkt_cnt, int *total_tx_bytes);
 
 int main(int argc, char *argv[]) {
     int serv_sock; /* 연결용 소켓 */
@@ -43,12 +44,12 @@ int main(int argc, char *argv[]) {
         exit(1);
     }
 
-    serv_sock(PF_INET, SOCK_STREAM, 0);
+    serv_sock = socket(PF_INET, SOCK_STREAM, 0);
     if (serv_sock == -1) {
         error_handling("socket() error");
     }
 
-    memset(&serv_addr, 9, sizeof(serv_addr));
+    memset(&serv_addr, 0, sizeof(serv_addr));
     serv_addr.sin_family = AF_INET; /*IPv4*/
     /* 현재 컴퓨터에 존재하는 모든
      * 네트워크 인터페이스(랜카드)의
@@ -56,16 +57,15 @@ int main(int argc, char *argv[]) {
     serv_addr.sin_addr.s_addr = htonl(INADDR_ANY);
     serv_addr.sin_port = htons(atoi(argv[1]));
 
-    if (bind(serv_sock, (struct sockadd*) &serv_addr,
+    if (bind(serv_sock, (struct sockaddr *) &serv_addr,
                 sizeof(serv_addr)) == -1 ) {
         error_handling("bind() error");
     }
 
+    if (listen(serv_sock, 5) == -1) error_handling("listen() error");
+
     clnt_addr_size = sizeof(clnt_addr);
-    clnt_sock = accept(
-            serv_sock,
-            (struct sockaddr*) &clnt_addr,
-            &clnt_addr_size);
+    clnt_sock = accept(serv_sock, (struct sockaddr*) &clnt_addr, &clnt_addr_size);
 
     if (clnt_sock == -1) {
         error_handling("accept() error");
@@ -82,7 +82,7 @@ int main(int argc, char *argv[]) {
 
     /* 패킷 초기화 */
     PACKET rcv_pkt, send_pkt;
-    memset(&rev_pkt, 0, sizeof(PACKET));
+    memset(&rcv_pkt, 0, sizeof(PACKET));
     memset(&send_pkt, 0, sizeof(PACKET));
 
     /* 클라이언트측에서 FILE_REQ 수신 no While !! 절차적 처리 */
@@ -97,12 +97,12 @@ int main(int argc, char *argv[]) {
     printf("[Rx] cmd: %d, file_name: %s\n", rcv_pkt.cmd, rcv_pkt.buf);
 
     /* 클라이언트에게 파일 전송하기 */
-    if (file_transmit(rev_pkt, clnt_sock, &pkt_cnt, &total_tx_bytes) != 0) { /* 정상적으로 전송했으면 0 리턴 */
+    if (file_transmit(&rcv_pkt, clnt_sock, &pkt_cnt, &total_tx_bytes) != 0) { /* 정상적으로 전송했으면 0 리턴 */
         error_handling("file transmit error");
     }
 
     /* 파일 정상적으로 전송 후 FILE_END_ACK 수신 처리 */
-    memset(&rev_pkt, 0, sizeof(PACKET)); /* 패킷 받을 구조체 초기화 */
+    memset(&rcv_pkt, 0, sizeof(PACKET)); /* 패킷 받을 구조체 초기화 */
     if (read(clnt_sock, &rcv_pkt, sizeof(PACKET)) == -1) {
         error_handling("read() error");
     }
