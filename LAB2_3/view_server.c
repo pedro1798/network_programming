@@ -2,11 +2,11 @@
 
 #define BUF_SIZE 100
 // cmd type
-#define FILE_REQ 1
-#define FILE_RES 2
-#define FILE_END 3
-#define FILE_END_ACK 4
-#define FILE_NOT_FOUND 5
+#define FILE_REQ 1 // clnt
+#define FILE_RES 2 // serv
+#define FILE_END 3 // serv
+#define FILE_END_ACK 4 // clnt
+#define FILE_NOT_FOUND 5 // serv
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -73,48 +73,46 @@ int main(int argc, char *argv[]) {
 
     /* -------- ^^boilerplate code^^ --------*/
 
+    int pkt_cnt = 0;
+    int total_tx_bytes = 0;
+
     printf("------------------------------\n");
     printf("TCP Remote File View Server\n");
     printf("------------------------------\n");
 
-    while (1) {
-        /* 패킷 수신 */
-        PACKET rcv_pkt = {0};
-        PACKET send_pkt = {0};
-        /* 안전빵 */
-        memset(&rev_pkt, 0, sizeof(PACKET));
-        memset(&send_pkt, 0, sizeof(PACKET));
+    /* 패킷 초기화 */
+    PACKET rcv_pkt, send_pkt;
+    memset(&rev_pkt, 0, sizeof(PACKET));
+    memset(&send_pkt, 0, sizeof(PACKET));
 
-        int rcv_pkt_size = read(clnt_sock, &rcv_pkt, sizeof(PACKET));
-        if (rcv_pkt_size == -1) {
-            error_handling("read() error");
-        }
-
-        if (rcv_pkt.cmd == FILE_REQ) {
-            printf("[Rx] cmd: %d, file_name: %s\n", rcv_pkt.cmd,
-                    rcv_pkt.buf);
-
-            FILE *fp = fopen(rcv_pkt.buf, "r");
-
-            /* 파일이 없으면 FILE_NOT_FOUND 송신 */
-            if (fp == NULL) { /* file open error */
-                send_pkt.cmd = FILE_NOT_FOUND;
-                snprintf(send_pkt.buf, sizeof(send_pkt.buf),
-                        "File Not Found\n");
-
-                send_pkt.buf_len = strlen(send_pkt.buf);
-
-                if (write(clnt_sock, &send_pkt, sizeof(PACKET)) == -1) {
-                    error_handling("write() error");
-                }
-
-                printf("Tx cmd: %d, %s: File Not Found\n",
-                        send_pkt.cmd, send_pkt.buf);
-                break; /* 그냥 제어흐름용, while 문 지우고 고치기 */
-            }
-            /* 파일이 존재한다면 */
-        }
+    /* 클라이언트측에서 FILE_REQ 수신 no While !! 절차적 처리 */
+    int rcv_pkt_size = read(clnt_sock, &rcv_pkt, sizeof(PACKET));
+    if (rcv_pkt_size == -1) {
+        error_handling("read() error");
     }
+
+    /* FILE_REQ cmd 처리 */
+    if (rcv_pkt.cmd != FILE_REQ) error_handling("wrong cmd received");
+
+    printf("[Rx] cmd: %d, file_name: %s\n", rcv_pkt.cmd, rcv_pkt.buf);
+
+    /* 클라이언트에게 파일 전송하기 */
+    if (file_transmit(rev_pkt, clnt_sock, &pkt_cnt, &total_tx_bytes) != 0) { /* 정상적으로 전송했으면 0 리턴 */
+        error_handling("file transmit error");
+    }
+
+    /* 파일 정상적으로 전송 후 FILE_END_ACK 수신 처리 */
+    memset(&rev_pkt, 0, sizeof(PACKET)); /* 패킷 받을 구조체 초기화 */
+    if (read(clnt_sock, &rcv_pkt, sizeof(PACKET)) == -1) {
+        error_handling("read() error");
+    }
+
+    if (rcv_pkt.cmd != FILE_END_ACK) error_handling("wrong cmd received");
+
+    printf("------------------------------\n");
+    printf("Total Tx count: %d, bytes: %d\n", pkt_cnt, total_tx_bytes);
+    printf("TCP Server Socket Close!\n");
+    printf("------------------------------\n");
 
     /* -------- VVboilerplate code^^ --------*/
 
@@ -127,4 +125,63 @@ void error_handling(char *message) {
     fputs(message, stderr);
     fputc('\n', stderr);
     exit(1);
+}
+
+int file_transmit(PACKET *rcv_pkt, int clnt_sock, int *pkt_cnt, int *total_tx_bytes) {
+    PACKET send_pkt = {0};
+    memset(&send_pkt, 0, sizeof(PACKET));
+
+    FILE *fp = fopen(rcv_pkt->buf, "r");
+    if (fp == NULL) { /* file open error */
+        send_pkt.cmd = FILE_NOT_FOUND;
+        snprintf(send_pkt.buf, sizeof(send_pkt.buf), "File Not Found\n");
+        send_pkt.buf_len = strlen(send_pkt.buf);
+
+        if (write(clnt_sock, &send_pkt, sizeof(PACKET)) == -1) {
+            error_handling("write() error");
+        }
+        return -1; /* 파일이 존재하지 않으면 -1 리턴하고 종료 */
+    } else { /* 파일이 존재한다면 */
+        /*
+        fseek(fp, 0, SEEK_END);
+        long file_size = ftell(fp);
+        int chunk_num = file_size / BUF_SIZE;
+        int expected_pkt_num = (file_size % BUF_SIZE == 0) ? chunk_num : (chunk_num + 1);
+        rewind(fp);
+        */
+
+        *pkt_cnt = 0;
+        *total_tx_bytes = 0;
+        size_t read_bytes;
+
+        while(1) {
+            memset(&send_pkt, 0, sizeof(PACKET));
+
+            /* 파일에서 100바이트를 읽고 패킷 버퍼에 저장 */
+            read_bytes = fread(send_pkt.buf, 1, BUF_SIZE, fp);
+            if (ferror(fp)) error_handling("fread() error");
+
+            send_pkt.cmd = FILE_RES;
+            /* 마지막 패킷 cmd FILE_END 업데이트 */
+            if (read_bytes < BUF_SIZE || feof(fp))send_pkt.cmd = FILE_END;
+
+            send_pkt.buf_len = (int)read_bytes;
+
+            if (write(clnt_sock, &send_pkt, sizeof(PACKET)) == -1) {
+                error_handling("packet write() error");
+            }
+            *total_tx_bytes += read_bytes;
+
+            printf("[Tx] cmd: %d, len: %d, total_tx_cnt: %d, total_tx_bytes: %d\n",
+                    send_pkt.cmd, send_pkt.buf_len,
+                    ++(*pkt_cnt), *total_tx_bytes);
+
+            /* 파일을 다 읽었다면 while loop 탈출 */
+            if (send_pkt.cmd == FILE_END) break;
+            sleep(1); /* 1초 간격으로 보낸다 */
+        }
+    }
+
+    fclose(fp); /* 파일 닫고 종료 */
+    return 0;
 }
