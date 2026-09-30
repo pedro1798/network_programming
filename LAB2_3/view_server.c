@@ -18,10 +18,6 @@
 
 typedef struct {
     int cmd;
-    /*
-     * 파일 이름의 길이 또는 실제 전송되는
-     * 파일의 크기 저장
-     */
     int buf_len;
     char buf[BUF_SIZE+1]; // null 자리
 } PACKET;
@@ -36,8 +32,6 @@ int main(int argc, char *argv[]) {
     struct sockaddr_in serv_addr;
     struct sockaddr_in clnt_addr;
     socklen_t clnt_addr_size;
-
-    char message[] = "hello\n";
 
     if (argc != 2) {
         printf("Usage: %s <port>\n", argv[0]);
@@ -81,15 +75,15 @@ int main(int argc, char *argv[]) {
     printf("------------------------------\n");
 
     /* 패킷 초기화 */
-    PACKET rcv_pkt, send_pkt;
+    PACKET rcv_pkt;
     memset(&rcv_pkt, 0, sizeof(PACKET));
-    memset(&send_pkt, 0, sizeof(PACKET));
 
     /* 클라이언트측에서 FILE_REQ 수신 no While !! 절차적 처리 */
     int rcv_pkt_size = read(clnt_sock, &rcv_pkt, sizeof(PACKET));
     if (rcv_pkt_size == -1) {
         error_handling("read() error");
     }
+    rcv_pkt.buf[BUF_SIZE] = '\0';
 
     /* FILE_REQ cmd 처리 */
     if (rcv_pkt.cmd != FILE_REQ) error_handling("wrong cmd received");
@@ -138,6 +132,7 @@ int file_transmit(PACKET *rcv_pkt, int clnt_sock, int *pkt_cnt, int *total_tx_by
         send_pkt.buf_len = strlen(send_pkt.buf);
 
         if (write(clnt_sock, &send_pkt, sizeof(PACKET)) == -1) {
+            fclose(fp);
             error_handling("write() error");
         }
         return -1; /* 파일이 존재하지 않으면 -1 리턴하고 종료 */
@@ -159,15 +154,21 @@ int file_transmit(PACKET *rcv_pkt, int clnt_sock, int *pkt_cnt, int *total_tx_by
 
             /* 파일에서 100바이트를 읽고 패킷 버퍼에 저장 */
             read_bytes = fread(send_pkt.buf, 1, BUF_SIZE, fp);
-            if (ferror(fp)) error_handling("fread() error");
+            if (ferror(fp)) {
+                fclose(fp);
+                error_handling("fread() error");
+            }
 
             send_pkt.cmd = FILE_RES;
             /* 마지막 패킷 cmd FILE_END 업데이트 */
-            if (read_bytes < BUF_SIZE || feof(fp))send_pkt.cmd = FILE_END;
+            int c = fgetc(fp);
+            if (c == EOF) send_pkt.cmd = FILE_END;   // 이번이 마지막 데이터
+            else ungetc(c, fp);
 
             send_pkt.buf_len = (int)read_bytes;
 
             if (write(clnt_sock, &send_pkt, sizeof(PACKET)) == -1) {
+                fclose(fp);
                 error_handling("packet write() error");
             }
             *total_tx_bytes += read_bytes;
