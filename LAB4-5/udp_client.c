@@ -46,6 +46,11 @@ int main(int argc, char* argv[]) {
     serv_addr.sin_addr.s_addr = inet_addr(argv[1]);
     serv_addr.sin_port = htons(atoi(argv[2]));
 
+    /* ================================================ */
+
+    printf("---------------------------------\n");
+    printf("  Finding Alphabet Game Client\n");
+    printf("---------------------------------\n");
     REQ_PACKET req = {0};
     RES_PACKET res = {0};
     srand(time(NULL));
@@ -63,15 +68,17 @@ int main(int argc, char* argv[]) {
         printf("[Client] Tx cmd=%d, ch=%c\n",
                 req.cmd, req.ch);
 
+        /* 전송하고 결과 수신받는다 */
         str_len = recvfrom(sock, &res, sizeof(res), 0,
                    (struct sockaddr*)&from_addr, &addr_size);
 
         if (res.cmd == GAME_REQ) error_handling("Wrong cmd\n");
 
+        /* 수신받은 결과 터미널에 출력 */
         printf("[Client] Rx cmd=%d, result=%d\n",
                 res.cmd, res.result);
 
-        if (res.cmd == GAME_END) {
+        if (res.cmd == GAME_END) { /* 받은 cmd가 GAME_END면 클라이언트 종료 */
             printf("No empty space. Exit this program.\n");
             break;
         }
@@ -80,9 +87,9 @@ int main(int argc, char* argv[]) {
 
         memset(&req, 0, sizeof(req));
         memset(&res, 0, sizeof(res));
-        sleep(0.6);
     }
 
+    /* ================================================ */
     printf("Exit Client Program.\n");
     close(sock);
     return 0;

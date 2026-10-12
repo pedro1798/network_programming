@@ -82,7 +82,7 @@ int main(int argc, char* argv[]) {
         if (req.cmd != GAME_REQ)
             error_handling("Wrong cmd.\n");
 
-        /* 일단 수신받고 다찼는지 체크 */
+        /* 수신받고 업데이트하기 전 판이 다 찼는지 체크 */
         int is_full = 1;
         for (int i = 0; i < BOARD_SIZE; i++)
             for (int j = 0; j < BOARD_SIZE; j++)
@@ -90,15 +90,18 @@ int main(int argc, char* argv[]) {
 
         printf("[Server] Rx cmd=%d, ch=%c\n", req.cmd, req.ch);
 
-        res.result = check_puzzle(b1, res.board, req.ch);
-
+        /* 판이 다찼으면 result에 0을 넣는다 */
+        res.result = (is_full) ? 0 :check_puzzle(b1, res.board, req.ch);
+        /* 판이 다 찼으면 GAME_END 아니면 GAME_RES */
         res.cmd = (is_full) ? GAME_END : GAME_RES;
 
+        /* 일단 res 패킷은 클라이언트에게 보낸다 */
         sendto(serv_sock, &res, sizeof(RES_PACKET), 0,
                 (struct sockaddr*)&clnt_addr, clnt_addr_size);
 
         printf("[Server] Tx cmd=%d, result=%d\n", res.cmd, res.result);
 
+        /* 보내고 GAME_END 면 종료 */
         if (res.cmd == GAME_END) {
             printf("No empty space. Exit this program.\n");
             break;
@@ -107,6 +110,8 @@ int main(int argc, char* argv[]) {
         draw_puzzle(b1, res.board);
 
         memset(&req, 0, sizeof(req));
+
+        sleep(1);
     }
     /* =====================================================*/
 
