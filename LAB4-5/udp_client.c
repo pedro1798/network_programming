@@ -75,7 +75,7 @@ int main(int argc, char* argv[]) {
         if (str_len < 0)
             error_handling("recvfrom() error");
 
-        if (str_len != sizeof(req)) {
+        if (str_len != sizeof(res)) {
             fprintf(stderr, "Invalid request packet size.\n");
             continue;
         }
