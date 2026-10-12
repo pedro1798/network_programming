@@ -69,8 +69,16 @@ int main(int argc, char* argv[]) {
                 req.cmd, req.ch);
 
         /* 전송하고 결과 수신받는다 */
+        addr_size = sizeof(from_addr);
         str_len = recvfrom(sock, &res, sizeof(res), 0,
                    (struct sockaddr*)&from_addr, &addr_size);
+        if (str_len < 0)
+            error_handling("recvfrom() error");
+
+        if (str_len != sizeof(req)) {
+            fprintf(stderr, "Invalid request packet size.\n");
+            continue;
+        }
 
         if (res.cmd == GAME_REQ) error_handling("Wrong cmd\n");
 

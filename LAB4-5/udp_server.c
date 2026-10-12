@@ -79,6 +79,14 @@ int main(int argc, char* argv[]) {
         str_len = recvfrom(serv_sock, &req, sizeof(REQ_PACKET), 0,
                 (struct sockaddr *)&clnt_addr, &clnt_addr_size);
 
+        if (str_len < 0)
+            error_handling("recvfrom() error");
+
+        if (str_len != sizeof(req)) {
+            fprintf(stderr, "Invalid request packet size.\n");
+            continue;
+        }
+
         if (req.cmd != GAME_REQ)
             error_handling("Wrong cmd.\n");
 
@@ -146,7 +154,7 @@ int check_puzzle(char b1[BOARD_SIZE][BOARD_SIZE], char b2[BOARD_SIZE][BOARD_SIZE
     int cnt = 0;
     for (int i = 0; i < BOARD_SIZE; i++) {
         for (int j = 0; j < BOARD_SIZE; j++) {
-            if (b1[i][j] == ch && b2[i][j] == 0) {
+            if (b1[i][j] == ch) {
                 b2[i][j] = ch;
                 cnt++;
             }
