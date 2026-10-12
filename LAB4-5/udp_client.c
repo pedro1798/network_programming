@@ -64,7 +64,7 @@ int main(int argc, char* argv[]) {
                 req.cmd, req.ch);
 
         str_len = recvfrom(sock, &res, sizeof(res), 0,
-                (struct sockaddr*)&from_addr, &addr_size);
+                   (struct sockaddr*)&from_addr, &addr_size);
 
         if (res.cmd == GAME_REQ) error_handling("Wrong cmd\n");
 
@@ -80,7 +80,7 @@ int main(int argc, char* argv[]) {
 
         memset(&req, 0, sizeof(req));
         memset(&res, 0, sizeof(res));
-        sleep(1);
+        sleep(0.6);
     }
 
     printf("Exit Client Program.\n");

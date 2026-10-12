@@ -97,7 +97,7 @@ int main(int argc, char* argv[]) {
         sendto(serv_sock, &res, sizeof(RES_PACKET), 0,
                 (struct sockaddr*)&clnt_addr, clnt_addr_size);
 
-        printf("[Server] Tx cmd=%d, result=%d\n", GAME_RES, res.result);
+        printf("[Server] Tx cmd=%d, result=%d\n", res.cmd, res.result);
 
         if (res.cmd == GAME_END) {
             printf("No empty space. Exit this program.\n");
