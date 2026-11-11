@@ -77,7 +77,7 @@ int main(int argc, char *argv[]) {
 
     while(1) {
         /* 모든 클라이언트가 종료했으면 */
-        if (toggle && !FD_ISSET(3, reads) && !FD_ISSET(4, reads)) {
+        if (toggle && !FD_ISSET(4, &reads) && !FD_ISSET(5, &reads)) {
             break;
         }
 
@@ -118,30 +118,33 @@ int main(int argc, char *argv[]) {
                 PACKET pkt;
 
                 ssize_t n = read_all(i, &pkt, sizeof(pkt));
-                if (n == 0) continue; /* SENDER가 먼저 연결을 종료해도 RECEIVER 연결종료를 기다림 */
+                /* SENDER가 먼저 연결을 종료해도 RECEIVER 연결종료를 기다림 */
+                if (n == 0) {
+                    FD_CLR(i, &reads);
+                    close(i);
+                    continue;
+                }
 
                 if (n == sizeof(pkt)) { /* SENDER에게 데이터를 정상적으로 수신했으면 */
                     for (int j = serv_sock + 1; j < fd_max; j++) {
                         /* reciver client 4, 5 */
                         if (FD_ISSET(j, &reads)) {
-                            write_all(j, &pkt);
+                            write_all(j, &pkt, sizeof(pkt));
                         }
                     }
                 }
 
             } else {
-                if (i != 4 || i !=5 ) error_handling("Unknown client ");
-
                 char buf[1024];
 
-                ssize_t len = recv(fd, buf, sizeof(buf), 0);
+                ssize_t len = recv(i, buf, sizeof(buf), 0);
 
                 if (len == 0) { /* 상대가 정상적으로 close() 함 (FIN 수신) */
-                    FD_CLR(fd, &reads);
-                    close(fd); /* 리시버 목록(4, 5)에서도 제거 */
+                    FD_CLR(i, &reads);
+                    close(i); /* 리시버 목록(4, 5)에서도 제거 */
                 } else if (len < 0) { /* 비정상 종료 */
                     FD_CLR(fd, &reads);
-                    close(fd);
+                    close(i);
                 } else continue;
             }
         }
