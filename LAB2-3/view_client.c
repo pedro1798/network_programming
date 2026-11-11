@@ -16,6 +16,8 @@
 #include <unistd.h>
 
 void error_handling(char *message);
+ssize_t read_all(int sock, void *buf, size_t len);
+ssize_t write_all(int sock, const void *buf, size_t len);
 
 typedef struct {
     int cmd;
