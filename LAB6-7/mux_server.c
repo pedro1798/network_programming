@@ -1,3 +1,4 @@
+// 2022117156 박상준
 #define BUF_SIZE 1024
 
 #define SENDER 1
@@ -17,12 +18,12 @@
 #include <sys/time.h>
 #include <unistd.h>
 
-#pragma pack(push, 1)
+// #pragma pack(push, 1)
 typedef struct {
     int cmd;
     char buf[BUF_SIZE + 1];
 } PACKET;
-#pragma pack(pop)
+// #pragma pack(pop)
 
 /* 요청한 바이트 전체 전송 */
 ssize_t write_all(int sock, const void *buf, size_t len) {

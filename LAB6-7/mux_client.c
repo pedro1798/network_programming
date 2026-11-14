@@ -17,12 +17,12 @@
 #include <sys/time.h>
 #include <unistd.h>
 
-#pragma pack(push, 1)
+//#pragma pack(push, 1)
 typedef struct {
     int cmd;
     char buf[BUF_SIZE + 1];
 } PACKET;
-#pragma pack(pop)
+//#pragma pack(pop)
 
 static ssize_t read_all(int sock, void *buf, size_t len) {
     size_t total = 0;
