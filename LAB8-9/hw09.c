@@ -60,6 +60,7 @@ int main(int argc, char* argv[]) {
     /* 입력받은 IP주소가 멀티캐스트 대역인지 검사 */
     if (!IN_MULTICAST(ntohl(mreq.imr_multiaddr.s_addr))) {
         fprintf(stderr, "Not a multicast address: %s\n", argv[1]);
+        exit(EXIT_FAILURE);
     }
     mreq.imr_interface.s_addr = htonl(INADDR_ANY); /* 기본 네트워크 인터페이스 사용 */
 
