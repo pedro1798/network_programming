@@ -42,24 +42,26 @@ void sigterm_handler(int sig) {
 
 int main(int argc, char* argv[]) {
     if (argc != 4) {
-        fprintf(stderr, "Usage: ./hw07 <GroupIP> <Port> <Name>\n");
+        fprintf(stderr, "Usage: %s <GroupIP> <PORT> <Name>\n", argv[0]);
         exit(EXIT_FAILURE);
     }
 
-    /* 매개변수 로컬변수에 저장 */
+    /* 프로그램 매개변수 로컬변수에 저장 */
     char *group_ip = argv[1];
     int port = atoi(argv[2]);
     char *name = argv[3];
 
     /* 멀티캐스트 주소 초기화 */
     if (inet_pton(AF_INET, group_ip, &mreq.imr_multiaddr.s_addr) != 1) {
-        if (!IN_MULTICAST(ntohl(serv_addr.sin_addr.s_addr))) {
-            fprintf(stderr, "Not a multicast address: %s\n", argv[1]);
-        } else perror("inet_pton");
-        return EXIT_FAILURE;
+        perror("inet_pton");
+        exit(EXIT_FAILURE);
+    }
+
+    /* 입력받은 IP주소가 멀티캐스트 대역인지 검사 */
+    if (!IN_MULTICAST(ntohl(mreq.imr_multiaddr.s_addr))) {
+        fprintf(stderr, "Not a multicast address: %s\n", argv[1]);
     }
     mreq.imr_interface.s_addr = htonl(INADDR_ANY); /* 기본 네트워크 인터페이스 사용 */
-
 
     pid_t pid = fork(); /* 프로세스 분기 */
 
@@ -98,7 +100,7 @@ int main(int argc, char* argv[]) {
 
         /* recv_sock 소켓 멀티캐스트 주소 설정 */
         if (setsockopt(recv_sock, IPPROTO_IP, IP_ADD_MEMBERSHIP,
-                       (void *)mreq, sizeof(mreq)) < 0) {
+                       (void *)&mreq, sizeof(mreq)) < 0) {
                 error_handling("setsockopt(IP_ADD_MEMBERSHIP) error\n");
         }
 
@@ -137,7 +139,7 @@ int main(int argc, char* argv[]) {
         struct sockaddr_in mul_addr;
         memset(&mul_addr, 0, sizeof(mul_addr));
         mul_addr.sin_family = AF_INET;
-        mul_addr.sin_addr = join_addr.imr_multiaddr;
+        mul_addr.sin_addr = mreq.imr_multiaddr;
         mul_addr.sin_port = htons(port);
 
         while(fgets(input_msg, sizeof(input_msg), stdin) != NULL) {
@@ -155,7 +157,7 @@ int main(int argc, char* argv[]) {
                 printf("SIGTERM: Multicast Receiver terminate!\n");
                 kill(pid, SIGTERM); /* 자식 프로세스에게 SIGTERM 시그널 전송 */
                 close(send_sock);
-                printf("[Parent]: send_sock closed.\n");
+                printf("[Parent] send_sock closed\n");
 
                 waitpid(pid, NULL, 0); /* 자식 프로세스 대기 */
                 break;
@@ -165,9 +167,9 @@ int main(int argc, char* argv[]) {
             timeinfo = localtime(&rawtime);
             strftime(time_str, sizeof(time_str), "%H:%M:%S", timeinfo);
 
-            snprintf(send_buf, sizeof(send_buf), 0,
-                    (struct sockaddr *)&mul_addr,
-                    sizeof(mul_addr));
+            snprintf(send_buf, sizeof(send_buf), "%s [%s] %s", time_str, name, input_msg);
+            sendto(send_sock, send_buf, strlen(send_buf), 0,
+                           (struct sockaddr *)&mul_addr, sizeof(mul_addr));
         }
     }
     return EXIT_SUCCESS;
