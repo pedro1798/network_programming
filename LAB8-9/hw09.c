@@ -48,7 +48,21 @@ int main(int argc, char* argv[]) {
 
     /* 프로그램 매개변수 로컬변수에 저장 */
     char *group_ip = argv[1];
-    int port = atoi(argv[2]);
+    // int port = atoi(argv[2]);
+
+    char *end = NULL;
+    errno = 0;
+    /* strtol: 문자열을 long type 정수로 */
+    /* end:    숫자로 변환되지 않은 첫 번째 문자의 주소를 저장할 포인터 */
+    long port = strtol(argv[2], &end, 10);
+
+    if (errno != 0 || end == argv[2] ||
+        /* *end != '\0': "8080abc"처럼 앞부분은 숫자지만 뒤에 문자가 섞여 있는 경우를 차단 */
+        *end != '\0' || port < 1 || port > 65535) { /* 포트 입력값 오류 */
+        fprintf(stderr, "Invalid port: %s\n", argv[2]);
+        return EXIT_FAILURE;
+    }
+
     char *name = argv[3];
 
     /* 멀티캐스트 주소 초기화 */
@@ -106,6 +120,7 @@ int main(int argc, char* argv[]) {
         }
 
         char buf[BUF_SIZE];
+
         for (;;) {
             int str_len = recvfrom(recv_sock, buf, BUF_SIZE-1, 0, NULL, 0);
             if (str_len < 0) break;
@@ -143,7 +158,7 @@ int main(int argc, char* argv[]) {
         mul_addr.sin_addr = mreq.imr_multiaddr;
         mul_addr.sin_port = htons(port);
 
-        while(fgets(input_msg, sizeof(input_msg), stdin) != NULL) {
+        while (fgets(input_msg, sizeof(input_msg), stdin) != NULL) {
             /* 입력에 줄바꿈이 없으면 */
             if (strchr(input_msg, '\n') == NULL) {
                 int ch;
@@ -153,6 +168,7 @@ int main(int argc, char* argv[]) {
                 input_msg[MSG_SIZE + 1] = '\0';
             }
 
+            /* 자식으로부터 q, Q를 수신하면 */
             if (strcmp(input_msg, "q\n") == 0 ||
                 strcmp(input_msg, "Q\n") == 0) {
                 printf("SIGTERM: Multicast Receiver terminate!\n");
